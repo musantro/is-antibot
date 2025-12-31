@@ -1,0 +1,50 @@
+############################
+# Python
+############################
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+
+############################
+# Testing & Coverage
+############################
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+.mypy_cache/
+
+############################
+# uv
+############################
+uv.lock
+
+############################
+# tmp, editor & OS files
+############################
+.tmp
+*.swo
+*.swp
+*.swn
+*.swm
+.DS_Store
+*#
+*~
+.idea
+*sublime*
+nbproject
+
+############################
+# Other
+############################
+.env
+.envrc

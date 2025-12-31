@@ -1,0 +1,566 @@
+{
+  "$schema": "./providers.schema.json",
+  "providers": [
+    {
+      "name": "cloudflare",
+      "description": "https://developers.cloudflare.com/cloudflare-challenges/challenge-types/challenge-pages/detect-response/",
+      "detections": [
+        {
+          "type": "headers",
+          "rules": [
+            { "header": "cf-mitigated", "equals": "challenge" }
+          ]
+        },
+        {
+          "type": "cookies",
+          "rules": [
+            { "cookie": "cf_clearance=" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "vercel",
+      "description": "https://github.com/glizzykingdreko/Vercel-Attack-Mode-Solver",
+      "detections": [
+        {
+          "type": "headers",
+          "rules": [
+            { "header": "x-vercel-mitigated", "equals": "challenge" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "akamai",
+      "description": "https://techdocs.akamai.com/property-mgr/docs/return-cache-status",
+      "detections": [
+        {
+          "type": "headers",
+          "rules": [
+            { "header": "akamai-cache-status", "startsWith": "Error" }
+          ]
+        },
+        {
+          "type": "headers",
+          "rules": [
+            { "header": "akamai-grn", "exists": true },
+            { "header": "x-akamai-session-info", "exists": true }
+          ]
+        },
+        {
+          "type": "cookies",
+          "rules": [
+            { "cookie": "_abck=" }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "bmak." }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "datadome",
+      "description": "https://docs.datadome.co/reference/validate-request",
+      "detections": [
+        {
+          "type": "headers",
+          "rules": [
+            { "header": "x-dd-b", "oneOf": ["1", "2"] }
+          ]
+        },
+        {
+          "type": "headers",
+          "rules": [
+            { "header": "x-datadome", "exists": true, "except": "protected" }
+          ]
+        },
+        {
+          "type": "headers",
+          "rules": [
+            { "header": "x-datadome-cid", "exists": true }
+          ]
+        },
+        {
+          "type": "cookies",
+          "rules": [
+            { "cookie": "datadome=" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "perimeterx",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-perimeterx.json",
+      "detections": [
+        {
+          "type": "headers",
+          "rules": [
+            { "header": "x-px-authorization", "exists": true }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "window._pxAppId" },
+            { "contains": "pxInit" },
+            { "contains": "_pxAction" }
+          ]
+        },
+        {
+          "type": "cookies",
+          "rules": [
+            { "cookie": "_px3=" },
+            { "cookie": "_pxhd=" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "shapesecurity",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-shapesecurity.json",
+      "detections": [
+        {
+          "type": "headers",
+          "rules": [
+            { "headerNamePattern": "^x-[a-z0-9]{8}-[abcdfz]$", "flags": "i" }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "shapesecurity" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "kasada",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-kasada.json",
+      "detections": [
+        {
+          "type": "headers",
+          "rules": [
+            { "header": "x-kasada", "exists": true },
+            { "header": "x-kasada-challenge", "exists": true }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "__kasada" },
+            { "contains": "kasada.js" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "imperva",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-incapsula.json",
+      "detections": [
+        {
+          "type": "headers",
+          "rules": [
+            { "header": "x-cdn", "equals": "Incapsula" },
+            { "header": "x-iinfo", "exists": true }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "incapsula" },
+            { "contains": "imperva" }
+          ]
+        },
+        {
+          "type": "cookies",
+          "rules": [
+            { "cookie": "incap_ses_" },
+            { "cookie": "visid_incap_" },
+            { "cookie": "reese84=" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "reblaze",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-reblaze.json",
+      "detections": [
+        {
+          "type": "cookies",
+          "rules": [
+            { "cookie": "rbzid=" },
+            { "cookie": "rbzsessionid=" }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "reblaze" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "cheq",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-cheq.json",
+      "detections": [
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "CheqSdk" },
+            { "contains": "cheqzone.com" }
+          ]
+        },
+        {
+          "type": "url",
+          "rules": [
+            { "regex": "cheqzone\\.com", "flags": "i" },
+            { "regex": "cheq\\.ai", "flags": "i" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "sucuri",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-sucuri.json",
+      "detections": [
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "sucuri" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "threatmetrix",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-threatmetrix.json",
+      "detections": [
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "ThreatMetrix" }
+          ]
+        },
+        {
+          "type": "url",
+          "rules": [
+            { "contains": "fp/check.js" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "meetrics",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-meetrics.json",
+      "detections": [
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "meetrics" }
+          ]
+        },
+        {
+          "type": "url",
+          "rules": [
+            { "regex": "meetrics\\.com", "flags": "i" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ocule",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-ocule.json",
+      "detections": [
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "ocule.co.uk" }
+          ]
+        },
+        {
+          "type": "url",
+          "rules": [
+            { "regex": "ocule\\.co\\.uk", "flags": "i" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "recaptcha",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-recaptcha.json",
+      "detections": [
+        {
+          "type": "url",
+          "rules": [
+            { "contains": "recaptcha/api" },
+            { "contains": "gstatic.com/recaptcha" },
+            { "contains": "recaptcha.net" },
+            { "regex": "google\\.com/recaptcha", "flags": "i" }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "regex": "\\b(?:window\\.)?grecaptcha\\s*\\.(?:execute|render|ready|getResponse|enterprise)\\b", "flags": "i" },
+            { "regex": "\\b(?:window\\.)?grecaptcha\\s*\\(", "flags": "i" },
+            { "regex": "\\b__grecaptcha_cfg\\b", "flags": "i" }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "g-recaptcha" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "hcaptcha",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-hcaptcha.json",
+      "detections": [
+        {
+          "type": "url",
+          "rules": [
+            { "regex": "hcaptcha\\.com", "flags": "i" }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "hcaptcha.com" },
+            { "contains": "h-captcha" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "funcaptcha",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-funcaptcha.json",
+      "detections": [
+        {
+          "type": "url",
+          "rules": [
+            { "regex": "arkoselabs\\.com", "flags": "i" },
+            { "contains": "funcaptcha" }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "arkoselabs.com" },
+            { "contains": "funcaptcha" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "geetest",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-geetest.json",
+      "detections": [
+        {
+          "type": "url",
+          "rules": [
+            { "regex": "geetest\\.com", "flags": "i" }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "geetest" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "cloudflare-turnstile",
+      "detections": [
+        {
+          "type": "url",
+          "rules": [
+            { "regex": "challenges\\.cloudflare\\.com/turnstile", "flags": "i" }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "cf-turnstile" },
+            { "contains": "challenges.cloudflare.com/turnstile" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "friendly-captcha",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-friendlycaptcha.json",
+      "detections": [
+        {
+          "type": "url",
+          "rules": [
+            { "regex": "friendlycaptcha\\.com", "flags": "i" }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "frc-captcha" },
+            { "contains": "friendlyChallenge" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "captcha-eu",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-captchaeu.json",
+      "detections": [
+        {
+          "type": "url",
+          "rules": [
+            { "regex": "captcha\\.eu", "flags": "i" }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "CaptchaEU" },
+            { "contains": "captchaeu" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "qcloud-captcha",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-qcloud.json",
+      "detections": [
+        {
+          "type": "url",
+          "rules": [
+            { "regex": "turing\\.captcha\\.qcloud\\.com", "flags": "i" }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "TencentCaptcha" },
+            { "contains": "turing.captcha" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "aliexpress-captcha",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-aliexpress.json",
+      "detections": [
+        {
+          "type": "url",
+          "rules": [
+            { "regex": "punish\\?x5secdata", "flags": "i" }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "x5secdata" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "reddit",
+      "detections": [
+        {
+          "type": "status_code",
+          "domain": "reddit.com",
+          "rules": [
+            { "status": 403 }
+          ]
+        },
+        {
+          "type": "html",
+          "domain": "reddit.com",
+          "rules": [
+            { "regex": "blocked by network security\\.", "flags": "i" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "linkedin",
+      "detections": [
+        {
+          "type": "status_code",
+          "domain": "linkedin.com",
+          "rules": [
+            { "status": 999 }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "instagram",
+      "detections": [
+        {
+          "type": "html",
+          "domain": "instagram.com",
+          "rules": [
+            { "regex": "<title>\\s*Login\\s*[•·]\\s*Instagram\\s*</title>", "flags": "i" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "youtube",
+      "detections": [
+        {
+          "type": "html",
+          "rules": [
+            { "regex": "<title>\\s*-\\s*YouTube</title>", "flags": "i" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "anubis",
+      "description": "https://github.com/TecharoHQ/anubis",
+      "detections": [
+        {
+          "type": "html",
+          "rules": [
+            { "regex": "<script id=\"anubis_challenge\"" },
+            { "contains": "/.within.website/x/cmd/anubis/" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "aws-waf",
+      "description": "https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-aws-waf.json",
+      "detections": [
+        {
+          "type": "headers",
+          "rules": [
+            { "header": "x-amzn-waf-action", "exists": true },
+            { "header": "x-amzn-requestid", "exists": true }
+          ]
+        },
+        {
+          "type": "html",
+          "rules": [
+            { "contains": "aws-waf" },
+            { "contains": "awswaf" }
+          ]
+        },
+        {
+          "type": "cookies",
+          "rules": [
+            { "cookie": "aws-waf-token=" }
+          ]
+        }
+      ]
+    }
+  ]
+}

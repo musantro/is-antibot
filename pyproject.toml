@@ -1,0 +1,114 @@
+[build-system]
+requires = ["uv_build>=0.7.2,<0.8"]
+build-backend = "uv_build"
+
+[project]
+name = "is-antibot"
+version = "0.0.0a0.dev0"
+description = "Detect antibot protection from 30+ providers — Cloudflare, Akamai, DataDome, PerimeterX, Kasada, Imperva, reCAPTCHA, hCaptcha, Turnstile, and more."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Microlink", email = "hello@microlink.io" }]
+keywords = [
+  "akamai",
+  "antibot",
+  "anubis",
+  "arkose",
+  "aws-waf",
+  "bot",
+  "bot-detection",
+  "bot-protection",
+  "captcha",
+  "challenge",
+  "cloudflare",
+  "datadome",
+  "detection",
+  "friendly-captcha",
+  "funcaptcha",
+  "geetest",
+  "hcaptcha",
+  "imperva",
+  "incapsula",
+  "kasada",
+  "perimeterx",
+  "reblaze",
+  "recaptcha",
+  "scraper",
+  "scraping",
+  "shapesecurity",
+  "sucuri",
+  "turnstile",
+  "vercel",
+  "waf",
+  "web-scraping",
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Internet :: WWW/HTTP",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://antibot.microlink.io/"
+Repository = "https://github.com/microlinkhq/is-antibot"
+Issues = "https://github.com/microlinkhq/is-antibot/issues"
+
+[dependency-groups]
+dev = ["ruff", "ty>=0.0.29", "pytest", "pytest-cov", "httpx"]
+
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+  "F",
+  "E",
+  "I",
+  "N",
+  "D",
+  "UP",
+  "B",
+  "S",
+  "C4",
+  "SIM",
+  "ASYNC",
+  "FBT",
+  "ERA",
+  "T20",
+  "RET",
+  "PTH",
+  "FLY",
+  "PERF",
+  "FURB",
+  "TRY",
+  "FAST",
+  "LOG",
+  "G",
+  "INP",
+  "PIE",
+  "TD",
+  "PD",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S310", "INP001", "D", "E501"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ty.rules]
+all = "error"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["network: tests that make real HTTP requests"]
