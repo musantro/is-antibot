@@ -62,12 +62,7 @@ Repository = "https://github.com/microlinkhq/is-antibot"
 Issues = "https://github.com/microlinkhq/is-antibot/issues"
 
 [dependency-groups]
-dev = [{ include-group = "lint" }, { include-group = "test" }]
-lint = [
-    "ruff",
-    "ty>=0.0.29",
-]
-test = ["pytest", "pytest-cov", "httpx"]
+dev = ["ruff", "ty>=0.0.29", "pytest", "pytest-cov", "httpx"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/is_antibot"]
