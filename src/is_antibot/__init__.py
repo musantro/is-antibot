@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from importlib import resources
 from urllib.parse import urlparse
 
 logger = logging.getLogger("is_antibot")
@@ -25,6 +27,15 @@ class AntibotResult:
     detected: bool
     provider: str | None
     detection: str | None
+
+
+def _load_providers() -> list[dict]:
+    """Load provider definitions from the bundled providers.json."""
+    source = resources.files("is_antibot").joinpath("providers.json")
+    return json.loads(source.read_text(encoding="utf-8"))["providers"]
+
+
+_PROVIDERS: list[dict] = _load_providers()
 
 
 def _create_get_header(headers: Mapping[str, str | list[str] | None]):
@@ -145,30 +156,92 @@ def _get_domain(url: str) -> str:
     return hostname
 
 
-# Pre-compiled regex patterns
-_RE_SHAPE_HEADER = re.compile(r"^x-[a-z0-9]{8}-[abcdfz]$", re.IGNORECASE)
-_RE_CHEQZONE = re.compile(r"cheqzone\.com", re.IGNORECASE)
-_RE_CHEQ_AI = re.compile(r"cheq\.ai", re.IGNORECASE)
-_RE_MEETRICS = re.compile(r"meetrics\.com", re.IGNORECASE)
-_RE_OCULE = re.compile(r"ocule\.co\.uk", re.IGNORECASE)
-_RE_GOOGLE_RECAPTCHA = re.compile(r"google\.com/recaptcha", re.IGNORECASE)
-_RE_GRECAPTCHA_API = re.compile(
-    r"\b(?:window\.)?grecaptcha\s*\.(?:execute|render|ready|getResponse|enterprise)\b", re.IGNORECASE
-)
-_RE_GRECAPTCHA_CALL = re.compile(r"\b(?:window\.)?grecaptcha\s*\(", re.IGNORECASE)
-_RE_GRECAPTCHA_CFG = re.compile(r"\b__grecaptcha_cfg\b", re.IGNORECASE)
-_RE_HCAPTCHA = re.compile(r"hcaptcha\.com", re.IGNORECASE)
-_RE_ARKOSELABS = re.compile(r"arkoselabs\.com", re.IGNORECASE)
-_RE_GEETEST = re.compile(r"geetest\.com", re.IGNORECASE)
-_RE_CF_TURNSTILE = re.compile(r"challenges\.cloudflare\.com/turnstile", re.IGNORECASE)
-_RE_FRIENDLY_CAPTCHA = re.compile(r"friendlycaptcha\.com", re.IGNORECASE)
-_RE_CAPTCHA_EU = re.compile(r"captcha\.eu", re.IGNORECASE)
-_RE_QCLOUD = re.compile(r"turing\.captcha\.qcloud\.com", re.IGNORECASE)
-_RE_ALIEXPRESS = re.compile(r"punish\?x5secdata", re.IGNORECASE)
-_RE_REDDIT_BLOCKED = re.compile(r"blocked by network security\.", re.IGNORECASE)
-_RE_INSTAGRAM_LOGIN = re.compile(r"<title>\s*Login\s*[•·]\s*Instagram\s*</title>", re.IGNORECASE)
-_RE_YOUTUBE_EMPTY = re.compile(r"<title>\s*-\s*YouTube</title>", re.IGNORECASE)
-_RE_ANUBIS_SCRIPT = re.compile(r'<script id="anubis_challenge"')
+def _compile_regex(pattern: str, flags: str = "") -> re.Pattern[str]:
+    """Compile a regex pattern with the given flag string."""
+    flag_map = {"i": re.IGNORECASE, "m": re.MULTILINE, "s": re.DOTALL, "u": re.UNICODE}
+    flag_value = 0
+    for ch in flags:
+        flag_value |= flag_map.get(ch, 0)
+    return re.compile(pattern, flag_value)
+
+
+# Pre-compile all regex patterns in provider definitions at import time.
+_REGEX_CACHE: dict[tuple[str, str], re.Pattern[str]] = {}
+
+
+def _get_regex(pattern: str, flags: str = "") -> re.Pattern[str]:
+    """Get a compiled regex, using a cache to avoid recompilation."""
+    key = (pattern, flags)
+    compiled = _REGEX_CACHE.get(key)
+    if compiled is None:
+        compiled = _compile_regex(pattern, flags)
+        _REGEX_CACHE[key] = compiled
+    return compiled
+
+
+def _match_rule(  # noqa: C901
+    rule: dict,
+    *,
+    get_header,
+    has_cookie,
+    html_has,
+    url_has,
+    header_names: list[str],
+    status_code: int | None,
+    detection_type: str,
+) -> bool:
+    """Evaluate a single rule against the current response data."""
+    # --- header rules ---
+    if "header" in rule:
+        header_val = get_header(rule["header"])
+
+        if "equals" in rule:
+            return header_val == rule["equals"]
+
+        if "startsWith" in rule:
+            return header_val is not None and str(header_val).startswith(rule["startsWith"])
+
+        if "oneOf" in rule:
+            return header_val in rule["oneOf"]
+
+        if "except" in rule:
+            # exists-except: header present and value != except
+            return header_val is not None and str(header_val).lower() != rule["except"].lower()
+
+        if "exists" in rule:
+            return header_val is not None
+
+    # --- header name pattern ---
+    if "headerNamePattern" in rule:
+        regex = _get_regex(rule["headerNamePattern"], rule.get("flags", ""))
+        return any(regex.search(name) for name in header_names)
+
+    # --- cookie rules ---
+    if "cookie" in rule:
+        return has_cookie(rule["cookie"])
+
+    # --- status code ---
+    if "status" in rule:
+        return status_code == rule["status"]
+
+    # --- contains (html or url) ---
+    if "contains" in rule:
+        matcher = html_has if detection_type == _HTML else url_has
+        return matcher(rule["contains"])
+
+    # --- regex (html or url) ---
+    if "regex" in rule:
+        regex = _get_regex(rule["regex"], rule.get("flags", "i"))
+        matcher = html_has if detection_type == _HTML else url_has
+        return matcher(regex)
+
+    return False
+
+
+def _create_result(*, detected: bool, provider: str | None, detection: str | None) -> AntibotResult:
+    """Create and log an antibot detection result."""
+    logger.debug("detected=%s provider=%s detection=%s", detected, provider, detection)
+    return AntibotResult(detected=detected, provider=provider, detection=detection)
 
 
 def _detect(
@@ -182,328 +255,36 @@ def _detect(
     has_cookie = create_has_cookie(headers)
     html_has = create_test_pattern(html)
     url_has = create_test_pattern(url)
-
-    def has_any_header(header_names: list[str]) -> bool:
-        return any(get_header(name) for name in header_names)
-
-    def has_any_cookie(cookie_names: list[str]) -> bool:
-        return any(has_cookie(name) for name in cookie_names)
-
-    def has_any_html(patterns: list[re.Pattern[str] | str]) -> bool:
-        return any(html_has(p) for p in patterns)
-
-    def has_any_url(patterns: list[re.Pattern[str] | str]) -> bool:
-        return any(url_has(p) for p in patterns)
-
-    def by_headers(provider: str) -> AntibotResult:
-        return _create_result(detected=True, provider=provider, detection=_HEADERS)
-
-    def by_cookies(provider: str) -> AntibotResult:
-        return _create_result(detected=True, provider=provider, detection=_COOKIES)
-
-    def by_html(provider: str) -> AntibotResult:
-        return _create_result(detected=True, provider=provider, detection=_HTML)
-
-    def by_url(provider: str) -> AntibotResult:
-        return _create_result(detected=True, provider=provider, detection=_URL)
-
-    def by_status_code(provider: str) -> AntibotResult:
-        return _create_result(detected=True, provider=provider, detection=_STATUS_CODE)
-
-    # Cloudflare: Check for cf-mitigated header with 'challenge' value
-    # Official docs: https://developers.cloudflare.com/cloudflare-challenges/challenge-types/challenge-pages/detect-response/
-    if get_header("cf-mitigated") == "challenge":
-        return by_headers("cloudflare")
-
-    # Cloudflare: cf_clearance cookie indicates Cloudflare challenge flow
-    if has_any_cookie(["cf_clearance="]):
-        return by_cookies("cloudflare")
-
-    # Vercel: Check for x-vercel-mitigated header with 'challenge' value
-    # Solver reference: https://github.com/glizzykingdreko/Vercel-Attack-Mode-Solver
-    if get_header("x-vercel-mitigated") == "challenge":
-        return by_headers("vercel")
-
-    # Akamai: Check for akamai-cache-status header starting with 'Error'
-    # Official docs: https://techdocs.akamai.com/property-mgr/docs/return-cache-status
-    akamai_cache = get_header("akamai-cache-status")
-    if akamai_cache and str(akamai_cache).startswith("Error"):
-        return by_headers("akamai")
-
-    # Akamai: Check for additional identifying headers (akamai-grn, x-akamai-session-info)
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-akamai.json
-    if has_any_header(["akamai-grn", "x-akamai-session-info"]):
-        return by_headers("akamai")
-
-    # Akamai: _abck bot manager tracking cookie
-    if has_any_cookie(["_abck="]):
-        return by_cookies("akamai")
-
-    # Akamai: Bot Manager API namespace (bmak) in html
-    if has_any_html(["bmak."]):
-        return by_html("akamai")
-
-    # DataDome: Check for x-dd-b header with values '1' (soft challenge) or '2' (hard challenge/CAPTCHA)
-    # Official docs: https://docs.datadome.co/reference/validate-request
-    if get_header("x-dd-b") in ("1", "2"):
-        return by_headers("datadome")
-
-    # DataDome: x-datadome header presence.
-    # Note: `x-datadome: protected` can appear on successful responses.
-    x_datadome = get_header("x-datadome")
-    if x_datadome and str(x_datadome).lower() != "protected":
-        return by_headers("datadome")
-
-    # DataDome: x-datadome-cid header presence
-    if has_any_header(["x-datadome-cid"]):
-        return by_headers("datadome")
-
-    # DataDome: datadome tracking cookie
-    if has_any_cookie(["datadome="]):
-        return by_cookies("datadome")
-
-    # PerimeterX: Check for X-PX-Authorization header (primary indicator)
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-perimeterx.json
-    if get_header("x-px-authorization"):
-        return by_headers("perimeterx")
-
-    # PerimeterX: Check for window._pxAppId, pxInit, or _pxAction in html
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-perimeterx.json
-    if has_any_html(["window._pxAppId", "pxInit", "_pxAction"]):
-        return by_html("perimeterx")
-
-    # PerimeterX: _px3 or _pxhd cookies
-    if has_any_cookie(["_px3=", "_pxhd="]):
-        return by_cookies("perimeterx")
-
-    # Shape Security: Check for dynamic header patterns x-[8chars]-[abcdfz]
-    # These headers use 8 random characters followed by suffixes like -a, -b, -c, -d, -f, or -z
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-shapesecurity.json
     header_names = _get_header_names(headers)
-    for name in header_names:
-        if _RE_SHAPE_HEADER.search(name):
-            return by_headers("shapesecurity")
+    domain = _get_domain(url)
 
-    # Shape Security: Check for 'shapesecurity' text in response html
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-shapesecurity.json
-    if has_any_html(["shapesecurity"]):
-        return by_html("shapesecurity")
+    for provider in _PROVIDERS:
+        for detection in provider["detections"]:
+            # Skip domain-scoped detections that don't match
+            if "domain" in detection and detection["domain"] != domain:
+                continue
 
-    # Kasada: Check for x-kasada or x-kasada-challenge headers
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-kasada.json
-    if has_any_header(["x-kasada", "x-kasada-challenge"]):
-        return by_headers("kasada")
+            detection_type = detection["type"]
+            rules = detection["rules"]
 
-    # Kasada: Check for __kasada global object or kasada.js script in html
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-kasada.json
-    if has_any_html(["__kasada", "kasada.js"]):
-        return by_html("kasada")
+            matched = any(
+                _match_rule(
+                    rule,
+                    get_header=get_header,
+                    has_cookie=has_cookie,
+                    html_has=html_has,
+                    url_has=url_has,
+                    header_names=header_names,
+                    status_code=status_code,
+                    detection_type=detection_type,
+                )
+                for rule in rules
+            )
 
-    # Imperva/Incapsula: Check for x-cdn header with 'Incapsula' value or x-iinfo header
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-incapsula.json
-    if get_header("x-cdn") == "Incapsula" or has_any_header(["x-iinfo"]):
-        return by_headers("imperva")
-
-    # Imperva/Incapsula: Check for 'incapsula' or 'imperva' text in response html
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-incapsula.json
-    if has_any_html(["incapsula", "imperva"]):
-        return by_html("imperva")
-
-    # Imperva/Incapsula: incap_ses_, visid_incap_, or reese84 cookies
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-incapsula.json
-    if has_any_cookie(["incap_ses_", "visid_incap_", "reese84="]):
-        return by_cookies("imperva")
-
-    # Reblaze: rbzid or rbzsessionid cookies
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-reblaze.json
-    if has_any_cookie(["rbzid=", "rbzsessionid="]):
-        return by_cookies("reblaze")
-
-    # Reblaze: Check for 'reblaze' text in response html
-    if has_any_html(["reblaze"]):
-        return by_html("reblaze")
-
-    # Cheq: Check for CheqSdk or cheqzone.com in html
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-cheq.json
-    if has_any_html(["CheqSdk", "cheqzone.com"]):
-        return by_html("cheq")
-
-    # Cheq: Check for cheqzone.com or cheq.ai in URL
-    if has_any_url([_RE_CHEQZONE, _RE_CHEQ_AI]):
-        return by_url("cheq")
-
-    # Sucuri: Check for 'sucuri' text in response html
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-sucuri.json
-    if has_any_html(["sucuri"]):
-        return by_html("sucuri")
-
-    # ThreatMetrix: Check for 'ThreatMetrix' in html
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-threatmetrix.json
-    if has_any_html(["ThreatMetrix"]):
-        return by_html("threatmetrix")
-
-    # ThreatMetrix: Check for fp/check.js fingerprint endpoint in URL
-    if has_any_url(["fp/check.js"]):
-        return by_url("threatmetrix")
-
-    # Meetrics: Check for 'meetrics' text in response html
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-meetrics.json
-    if has_any_html(["meetrics"]):
-        return by_html("meetrics")
-
-    # Meetrics: Check for meetrics.com in URL
-    if has_any_url([_RE_MEETRICS]):
-        return by_url("meetrics")
-
-    # Ocule: Check for ocule.co.uk in html
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-ocule.json
-    if has_any_html(["ocule.co.uk"]):
-        return by_html("ocule")
-
-    # Ocule: Check for ocule.co.uk in URL
-    if has_any_url([_RE_OCULE]):
-        return by_url("ocule")
-
-    # reCAPTCHA: Check for recaptcha/api, google.com/recaptcha, gstatic.com/recaptcha, or recaptcha.net in URL
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-recaptcha.json
-    if has_any_url(["recaptcha/api", "gstatic.com/recaptcha", "recaptcha.net"]) or has_any_url([_RE_GOOGLE_RECAPTCHA]):
-        return by_url("recaptcha")
-
-    # reCAPTCHA: Check for grecaptcha API usage in html (JavaScript indicator)
-    # Note: plain "grecaptcha" is too broad (e.g. ".grecaptcha-badge" CSS appears on normal YouTube pages)
-    if has_any_html([_RE_GRECAPTCHA_API, _RE_GRECAPTCHA_CALL, _RE_GRECAPTCHA_CFG]):
-        return by_html("recaptcha")
-
-    # reCAPTCHA: Check for g-recaptcha container class in html
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-recaptcha.json
-    if has_any_html(["g-recaptcha"]):
-        return by_html("recaptcha")
-
-    # hCaptcha: Check for hcaptcha.com domain in URL
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-hcaptcha.json
-    if has_any_url([_RE_HCAPTCHA]):
-        return by_url("hcaptcha")
-
-    # hCaptcha: Check for hcaptcha.com API domain or h-captcha container class in html
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-hcaptcha.json
-    # Note: bare 'hcaptcha' matches too broadly (could appear in articles discussing hCaptcha)
-    if has_any_html(["hcaptcha.com", "h-captcha"]):
-        return by_html("hcaptcha")
-
-    # FunCaptcha (Arkose Labs): Check for arkoselabs.com or funcaptcha in URL
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-funcaptcha.json
-    if has_any_url([_RE_ARKOSELABS]) or has_any_url(["funcaptcha"]):
-        return by_url("funcaptcha")
-
-    # FunCaptcha (Arkose Labs): Check for arkoselabs.com API domain or funcaptcha in html
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-funcaptcha.json
-    # Note: bare 'arkose' matches too broadly (e.g. Facebook bundles Arkose SDK for login without blocking content)
-    if has_any_html(["arkoselabs.com", "funcaptcha"]):
-        return by_html("funcaptcha")
-
-    # GeeTest: Check for geetest.com domain in URL
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-geetest.json
-    if has_any_url([_RE_GEETEST]):
-        return by_url("geetest")
-
-    # GeeTest: Check for geetest object or text in html
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-geetest.json
-    # Note: bare 'gt.js' removed (too generic, any script named gt.js would match)
-    if has_any_html(["geetest"]):
-        return by_html("geetest")
-
-    # Cloudflare Turnstile: Check for challenges.cloudflare.com/turnstile in URL
-    if has_any_url([_RE_CF_TURNSTILE]):
-        return by_url("cloudflare-turnstile")
-
-    # Cloudflare Turnstile: Check for cf-turnstile class or turnstile API script in html
-    # Note: bare 'turnstile' matches too broadly (common English word)
-    if has_any_html(["cf-turnstile", "challenges.cloudflare.com/turnstile"]):
-        return by_html("cloudflare-turnstile")
-
-    # Friendly Captcha: Check for friendlycaptcha.com in URL
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-friendlycaptcha.json
-    if has_any_url([_RE_FRIENDLY_CAPTCHA]):
-        return by_url("friendly-captcha")
-
-    # Friendly Captcha: Check for frc-captcha container or friendlyChallenge object in html
-    if has_any_html(["frc-captcha", "friendlyChallenge"]):
-        return by_html("friendly-captcha")
-
-    # Captcha.eu: Check for captcha.eu in URL
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-captchaeu.json
-    if has_any_url([_RE_CAPTCHA_EU]):
-        return by_url("captcha-eu")
-
-    # Captcha.eu: Check for CaptchaEU or captchaeu in html
-    if has_any_html(["CaptchaEU", "captchaeu"]):
-        return by_html("captcha-eu")
-
-    # QCloud Captcha (Tencent): Check for turing.captcha.qcloud.com in URL
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-qcloud.json
-    if has_any_url([_RE_QCLOUD]):
-        return by_url("qcloud-captcha")
-
-    # QCloud Captcha: Check for TencentCaptcha or turing.captcha in html
-    if has_any_html(["TencentCaptcha", "turing.captcha"]):
-        return by_html("qcloud-captcha")
-
-    # AliExpress CAPTCHA: Check for punish?x5secdata in URL
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/captcha/detect-aliexpress.json
-    if has_any_url([_RE_ALIEXPRESS]):
-        return by_url("aliexpress-captcha")
-
-    # AliExpress CAPTCHA: Check for x5secdata in html
-    if has_any_html(["x5secdata"]):
-        return by_html("aliexpress-captcha")
-
-    # Reddit: blocked requests are served as HTML challenge pages.
-    if _get_domain(url) == "reddit.com":
-        if status_code == 403:
-            return by_status_code("reddit")
-        if has_any_html([_RE_REDDIT_BLOCKED]):
-            return by_html("reddit")
-
-    # LinkedIn: status 999 is LinkedIn's dedicated bot-detection response
-    if _get_domain(url) == "linkedin.com" and status_code == 999:
-        return by_status_code("linkedin")
-
-    # Instagram: login page redirect indicates bot detection
-    if _get_domain(url) == "instagram.com" and has_any_html([_RE_INSTAGRAM_LOGIN]):
-        return by_html("instagram")
-
-    # YouTube: empty title pattern indicates a degraded response requiring BotGuard JS attestation
-    # Normal pages have `<title>Video Title - YouTube</title>`, bots get `<title> - YouTube</title>`
-    if has_any_html([_RE_YOUTUBE_EMPTY]):
-        return by_html("youtube")
-
-    # Anubis (Techaro BotStopper): challenge pages always contain the JSON script block
-    # `<script id="anubis_challenge" type="application/json">` (hardcoded in web/index.templ)
-    # and asset/API URLs under the Go constant `StaticPath = "/.within.website/x/cmd/anubis/"`.
-    # Source: https://github.com/TecharoHQ/anubis
-    if has_any_html([_RE_ANUBIS_SCRIPT, "/.within.website/x/cmd/anubis/"]):
-        return by_html("anubis")
-
-    # AWS WAF: Check for x-amzn-waf-action or x-amzn-requestid headers
-    # Reference: https://github.com/scrapfly/Antibot-Detector/blob/main/detectors/antibot/detect-aws-waf.json
-    if has_any_header(["x-amzn-waf-action", "x-amzn-requestid"]):
-        return by_headers("aws-waf")
-
-    # AWS WAF: Check for aws-waf or awswaf text in html
-    if has_any_html(["aws-waf", "awswaf"]):
-        return by_html("aws-waf")
-
-    # AWS WAF: aws-waf-token cookie
-    if has_any_cookie(["aws-waf-token="]):
-        return by_cookies("aws-waf")
+            if matched:
+                return _create_result(detected=True, provider=provider["name"], detection=detection_type)
 
     return _create_result(detected=False, provider=None, detection=None)
-
-
-def _create_result(*, detected: bool, provider: str | None, detection: str | None) -> AntibotResult:
-    """Create and log an antibot detection result."""
-    logger.debug("detected=%s provider=%s detection=%s", detected, provider, detection)
-    return AntibotResult(detected=detected, provider=provider, detection=detection)
 
 
 def is_antibot(

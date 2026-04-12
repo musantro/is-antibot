@@ -1,752 +1,198 @@
-"""Provider detection tests — port of test/index.js."""
+"""Provider detection tests — parametrized from providers.json."""
 
 from __future__ import annotations
 
-from is_antibot import create_test_pattern, is_antibot
-
-
-def test_cloudflare_cf_mitigated_header():
-    headers = {"cf-mitigated": "challenge"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "cloudflare"
-    assert result.detection == "headers"
-
-
-def test_cloudflare_cf_clearance_set_cookie():
-    headers = {"set-cookie": "cf_clearance=abc123; path=/"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "cloudflare"
-    assert result.detection == "cookies"
-
-
-def test_vercel():
-    headers = {"x-vercel-mitigated": "challenge"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "vercel"
-
-
-def test_akamai_cache_status_error():
-    headers = {"akamai-cache-status": "Error from child"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "akamai"
-
-
-def test_akamai_grn_header():
-    headers = {"akamai-grn": "test123"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "akamai"
-
-
-def test_akamai_abck_set_cookie():
-    headers = {"set-cookie": "_abck=abc123~0~; path=/"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "akamai"
-
-
-def test_akamai_bmak_in_html():
-    html = '<script>bmak.sensor_data = "test";</script>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "akamai"
-
-
-def test_akamai_no_antibot():
-    headers = {"akamai-cache-status": "HIT"}
-    result = is_antibot(headers=headers)
-    assert result.detected is False
-    assert result.provider is None
-    assert result.detection is None
-
-
-def test_datadome_x_dd_b_header():
-    for value in ("1", "2"):
-        headers = {"x-dd-b": value}
-        result = is_antibot(headers=headers)
-        assert result.detected is True, f"should detect datadome for x-dd-b={value}"
-        assert result.provider == "datadome"
-
-
-def test_datadome_x_datadome_header():
-    headers = {"x-datadome": "test"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "datadome"
-
-
-def test_datadome_x_datadome_protected_is_not_enough():
-    headers = {"x-datadome": "protected"}
-    result = is_antibot(headers=headers)
-    assert result.detected is False
-    assert result.provider is None
-
-
-def test_datadome_x_datadome_cid_header():
-    headers = {"x-datadome-cid": "abc123"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "datadome"
-
-
-def test_datadome_set_cookie():
-    headers = {"set-cookie": "datadome=abc123; path=/"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "datadome"
-
-
-def test_perimeterx_header():
-    headers = {"x-px-authorization": "test"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "perimeterx"
-
-
-def test_perimeterx_html_window_pxappid():
-    html = '<script>window._pxAppId = "PX123";</script>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "perimeterx"
-
-
-def test_perimeterx_html_pxinit():
-    html = "<script>pxInit();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "perimeterx"
-
-
-def test_perimeterx_html_pxaction():
-    html = '<script>var _pxAction = "c";</script>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "perimeterx"
-
-
-def test_perimeterx_px3_set_cookie():
-    headers = {"set-cookie": "_px3=abc123; path=/"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "perimeterx"
-
-
-def test_perimeterx_pxhd_set_cookie():
-    headers = {"set-cookie": "_pxhd=abc123; path=/"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "perimeterx"
-
-
-def test_shapesecurity_header():
-    headers = {"x-abc12345-a": "test"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "shapesecurity"
-
-
-def test_shapesecurity_html():
-    html = "<script>shapesecurity.init();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "shapesecurity"
-
-
-def test_kasada_header():
-    headers = {"x-kasada": "test"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "kasada"
-
-
-def test_kasada_html():
-    html = "<script>__kasada.init();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "kasada"
-
-
-def test_imperva_header():
-    headers = {"x-cdn": "Incapsula"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "imperva"
-
-
-def test_imperva_html_with_incapsula():
-    html = "<script>incapsula.init();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "imperva"
-
-
-def test_imperva_html_with_imperva():
-    html = "<script>imperva.protect();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "imperva"
-
-
-def test_imperva_incap_ses_set_cookie():
-    headers = {"set-cookie": "incap_ses_123=abc; path=/"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "imperva"
-
-
-def test_imperva_visid_incap_set_cookie():
-    headers = {"set-cookie": "visid_incap_456=xyz; path=/"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "imperva"
-
-
-def test_imperva_reese84_set_cookie():
-    headers = {"set-cookie": "reese84=abc123; path=/"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "imperva"
-
-
-def test_reblaze_rbzid_set_cookie():
-    headers = {"set-cookie": "rbzid=abc123; path=/"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "reblaze"
-
-
-def test_reblaze_rbzsessionid_set_cookie():
-    headers = {"set-cookie": "rbzsessionid=xyz; path=/"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "reblaze"
-
-
-def test_reblaze_html():
-    html = "<p>Protected by Reblaze</p>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "reblaze"
-    assert result.detection == "html"
-
-
-def test_cheq_html_cheqsdk():
-    html = "<script>CheqSdk.init();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "cheq"
-
-
-def test_cheq_html_cheqzone_com():
-    html = '<script src="https://ob.cheqzone.com/script.js"></script>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "cheq"
-
-
-def test_cheq_url_cheqzone_com():
-    url = "https://ob.cheqzone.com/script.js"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "cheq"
-    assert result.detection == "url"
-
-
-def test_cheq_url_cheq_ai():
-    url = "https://cheq.ai/api/verify"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "cheq"
-
-
-def test_sucuri_html():
-    html = "<p>Sucuri Website Firewall - Access Denied</p>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "sucuri"
-
-
-def test_threatmetrix_html():
-    html = "<script>ThreatMetrix.init();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "threatmetrix"
-
-
-def test_threatmetrix_url_fp_check_js():
-    url = "https://example.com/fp/check.js?org_id=abc"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "threatmetrix"
-
-
-def test_meetrics_html():
-    html = "<script>meetricsGlobal.init();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "meetrics"
-
-
-def test_meetrics_url():
-    url = "https://s418.mxcdn.net/bb-mx/serve/meetrics.com/script"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "meetrics"
-
-
-def test_ocule_html():
-    html = '<script src="https://proxy.ocule.co.uk/script.js"></script>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "ocule"
-
-
-def test_ocule_url():
-    url = "https://proxy.ocule.co.uk/script.js"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "ocule"
-
-
-def test_recaptcha_url_with_recaptcha_api():
-    url = "https://www.google.com/recaptcha/api.js"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "recaptcha"
-
-
-def test_recaptcha_url_with_google_com_recaptcha():
-    url = "https://google.com/recaptcha/enterprise.js"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "recaptcha"
-
-
-def test_recaptcha_url_with_gstatic_com_recaptcha():
-    url = "https://www.gstatic.com/recaptcha/releases/abc/recaptcha.js"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "recaptcha"
-
-
-def test_recaptcha_url_with_recaptcha_net():
-    url = "https://recaptcha.net/recaptcha/api.js"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "recaptcha"
-
-
-def test_recaptcha_html_grecaptcha():
-    html = "<script>grecaptcha.execute();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "recaptcha"
-
-
-def test_recaptcha_no_false_positive_for_grecaptcha_badge_css():
-    html = '<style>.grecaptcha-badge{visibility:hidden}</style><title>My Video - YouTube</title>'
-    result = is_antibot(html=html)
-    assert result.detected is False
-    assert result.provider is None
-
-
-def test_recaptcha_html_g_recaptcha():
-    html = '<div class="g-recaptcha" data-sitekey="test"></div>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "recaptcha"
-
-
-def test_hcaptcha_url():
-    url = "https://hcaptcha.com/captcha/v1"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "hcaptcha"
-
-
-def test_hcaptcha_html_hcaptcha_com():
-    html = '<script src="https://hcaptcha.com/1/api.js"></script>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "hcaptcha"
-
-
-def test_hcaptcha_no_false_positive_for_bare_hcaptcha_mention():
-    html = "<p>We use hcaptcha for bot protection.</p>"
-    result = is_antibot(html=html)
-    assert result.detected is False
-
-
-def test_hcaptcha_html_h_captcha():
-    html = '<div class="h-captcha"></div>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "hcaptcha"
-
-
-def test_funcaptcha_url_with_arkoselabs():
-    url = "https://client-api.arkoselabs.com/fc/gc/"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "funcaptcha"
-
-
-def test_funcaptcha_url_with_funcaptcha():
-    url = "https://api.funcaptcha.com/fc/gt2/public_key/test"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "funcaptcha"
-
-
-def test_funcaptcha_html_with_funcaptcha():
-    html = "<script>funcaptcha.init();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "funcaptcha"
-
-
-def test_funcaptcha_html_with_arkoselabs_com():
-    html = '<script src="https://client-api.arkoselabs.com/fc/assets/loader.js"></script>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "funcaptcha"
-
-
-def test_funcaptcha_no_false_positive_for_bare_arkose_mention():
-    html = '<script>window.__arkose_config = {};</script><meta property="og:title" content="Real content">'
-    result = is_antibot(html=html)
-    assert result.detected is False
-
-
-def test_geetest_url():
-    url = "https://api.geetest.com/ajax.php"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "geetest"
-
-
-def test_geetest_html():
-    html = "<script>geetest.init();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "geetest"
-
-
-def test_geetest_no_false_positive_for_generic_gt_js():
-    html = '<script src="/static/gt.js"></script>'
-    result = is_antibot(html=html)
-    assert result.detected is False
-
-
-def test_cloudflare_turnstile_url():
-    url = "https://challenges.cloudflare.com/turnstile/v0/api.js"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "cloudflare-turnstile"
-
-
-def test_cloudflare_turnstile_html_cf_turnstile():
-    html = '<div class="cf-turnstile"></div>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "cloudflare-turnstile"
-
-
-def test_cloudflare_turnstile_html_turnstile_api():
-    html = '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "cloudflare-turnstile"
-
-
-def test_cloudflare_turnstile_no_false_positive_for_bare_turnstile_word():
-    html = "<p>The subway turnstile was broken.</p>"
-    result = is_antibot(html=html)
-    assert result.detected is False
-
-
-def test_friendly_captcha_url():
-    url = "https://cdn.friendlycaptcha.com/modules/v2/widget.js"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "friendly-captcha"
-
-
-def test_friendly_captcha_html_frc_captcha():
-    html = '<div class="frc-captcha" data-sitekey="test"></div>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "friendly-captcha"
-
-
-def test_friendly_captcha_html_friendlychallenge():
-    html = "<script>friendlyChallenge.render();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "friendly-captcha"
-
-
-def test_captcha_eu_url():
-    url = "https://www.captcha.eu/widget/api.js"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "captcha-eu"
-
-
-def test_captcha_eu_html_captchaeu():
-    html = "<script>CaptchaEU.render();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "captcha-eu"
-
-
-def test_captcha_eu_html_captchaeu_widget():
-    html = '<div class="captchaeu-widget"></div>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "captcha-eu"
-
-
-def test_qcloud_captcha_url():
-    url = "https://turing.captcha.qcloud.com/tdc.js"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "qcloud-captcha"
-
-
-def test_qcloud_captcha_html_tencentcaptcha():
-    html = '<script>new TencentCaptcha("appid");</script>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "qcloud-captcha"
-
-
-def test_qcloud_captcha_html_turing_captcha():
-    html = '<script src="//turing.captcha.gtimg.com/tdc.js"></script>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "qcloud-captcha"
-
-
-def test_aliexpress_captcha_url():
-    url = "https://www.aliexpress.com/punish?x5secdata=abc123"
-    result = is_antibot(url=url)
-    assert result.detected is True
-    assert result.provider == "aliexpress-captcha"
-
-
-def test_aliexpress_captcha_html():
-    html = '<script>var x5secdata = "abc123";</script>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "aliexpress-captcha"
-
-
-def test_reddit_blocked_html():
-    html = "<div>blocked by network security.</div>"
-    url = "https://www.reddit.com/r/lotus/comments/1pzbv0z/my_lotus_elise_72d_with_17_rays_volk_gtp/"
-    result = is_antibot(html=html, url=url)
-    assert result.detected is True
-    assert result.provider == "reddit"
-    assert result.detection == "html"
-
-
-def test_reddit_blocked_html_on_non_reddit_url_should_not_match():
-    html = "<div>blocked by network security.</div>"
-    url = "https://example.com/some/path"
-    result = is_antibot(html=html, url=url)
-    assert result.detected is False
-    assert result.provider is None
-
-
-def test_reddit_blocked_by_status_code():
-    headers = {
-        "content-type": "text/html",
-        "server": "snooserv",
-        "cache-control": "private, no-store",
-    }
-    url = "https://www.reddit.com/r/digitalnomad/comments/1riz2r5/i_love_mexico_city_but_i_feel_so_unhealthy_here/"
-    result = is_antibot(headers=headers, url=url, status_code=403)
-    assert result.detected is True
-    assert result.provider == "reddit"
-    assert result.detection == "status_code"
-
-
-def test_reddit_allowed_endpoint():
-    headers = {
-        "content-type": "application/json; charset=UTF-8",
-        "server": "snooserv",
-    }
-    url = "https://www.reddit.com/r/lotus/comments/1pzbv0z/my_lotus_elise_72d_with_17_rays_volk_gtp/"
-    result = is_antibot(headers=headers, url=url)
-    assert result.detected is False
-    assert result.provider is None
-
-
-def test_linkedin_status_999():
-    result = is_antibot(status_code=999, url="https://www.linkedin.com/in/wesbos")
-    assert result.detected is True
-    assert result.provider == "linkedin"
-    assert result.detection == "status_code"
-
-
-def test_linkedin_status_999_ignored_for_non_linkedin_url():
-    result = is_antibot(status_code=999, url="https://example.com")
-    assert result.detected is False
-    assert result.provider is None
-
-
-def test_linkedin_no_antibot_without_status_999():
-    headers = {
-        "x-li-fabric": "prod-lor1",
-        "set-cookie": "other=value; Max-Age=5",
-    }
-    result = is_antibot(headers=headers, status_code=200)
-    assert result.detected is False
-    assert result.provider is None
-
-
-def test_instagram_login_page_redirect():
-    html = "<!DOCTYPE html><html lang=\"en\"><head><title>Login \u2022 Instagram</title></head><body></body></html>"
-    result = is_antibot(html=html, url="https://www.instagram.com/kikobeats/")
-    assert result.detected is True
-    assert result.provider == "instagram"
-    assert result.detection == "html"
-
-
-def test_youtube_empty_title_in_html():
-    html = (
-        "<!DOCTYPE html><html><head><title> - YouTube</title></head>"
-        '<body><ytd-app disable-upgrade="true"></ytd-app></body></html>'
-    )
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "youtube"
-
-
-def test_youtube_no_antibot_with_normal_title():
-    html = "<!DOCTYPE html><html><head><title>My Video - YouTube</title></head><body></body></html>"
-    result = is_antibot(html=html)
-    assert result.detected is False
-    assert result.provider is None
-
-
-def test_anubis_html_anubis_challenge_script_tag():
-    html = '<script id="anubis_challenge" type="application/json">{"rules":{"algorithm":"metarefresh"}}</script>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "anubis"
-    assert result.detection == "html"
-
-
-def test_anubis_html_static_path():
-    html = '<img src="https://example.com/.within.website/x/cmd/anubis/static/img/pensive.webp">'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "anubis"
-    assert result.detection == "html"
-
-
-def test_anubis_no_false_positive_for_anubis_challenge_in_plain_text():
-    html = "<p>The template uses anubis_challenge as a key</p>"
-    result = is_antibot(html=html, headers={})
-    assert result.detected is False
-
-
-def test_anubis_no_false_positive_for_anubis_challenge_as_non_script_element():
-    html = '<div id="anubis_challenge">some content</div>'
-    result = is_antibot(html=html, headers={})
-    assert result.detected is False
-
-
-def test_anubis_no_false_positive_for_within_website_in_html_text():
-    html = "<p>Read more at within.website blog</p>"
-    result = is_antibot(html=html, headers={})
-    assert result.detected is False
-
-
-def test_aws_waf_header():
-    headers = {"x-amzn-waf-action": "CHALLENGE"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "aws-waf"
-
-
-def test_aws_waf_html_aws_waf():
-    html = "<script>aws-waf.init();</script>"
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "aws-waf"
-
-
-def test_aws_waf_html_awswaf():
-    html = '<script src="/awswaf/challenge.js"></script>'
-    result = is_antibot(html=html)
-    assert result.detected is True
-    assert result.provider == "aws-waf"
-
-
-def test_aws_waf_token_set_cookie():
-    headers = {"set-cookie": "aws-waf-token=abc123; path=/"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "aws-waf"
-
-
-def test_create_test_pattern_with_invalid_regex_catches_error():
+import json
+from importlib import resources
+
+import pytest
+
+from is_antibot import AntibotResult, create_test_pattern, is_antibot
+
+_PROVIDERS_DATA = json.loads(resources.files("is_antibot").joinpath("providers.json").read_text(encoding="utf-8"))
+_ALL_PROVIDER_NAMES = {p["name"] for p in _PROVIDERS_DATA["providers"]}
+
+# ---------------------------------------------------------------------------
+# Positive detection cases: (id, kwargs, expected_provider, expected_detection)
+# ---------------------------------------------------------------------------
+POSITIVE_CASES: list[tuple[str, dict, str, str]] = [
+    # -- cloudflare --
+    ("cloudflare/headers/cf-mitigated", {"headers": {"cf-mitigated": "challenge"}}, "cloudflare", "headers"),
+    ("cloudflare/cookies/cf_clearance", {"headers": {"set-cookie": "cf_clearance=abc123; path=/"}}, "cloudflare", "cookies"),
+    # -- vercel --
+    ("vercel/headers/x-vercel-mitigated", {"headers": {"x-vercel-mitigated": "challenge"}}, "vercel", "headers"),
+    # -- akamai --
+    ("akamai/headers/cache-status-error", {"headers": {"akamai-cache-status": "Error from child"}}, "akamai", "headers"),
+    ("akamai/headers/grn", {"headers": {"akamai-grn": "test123"}}, "akamai", "headers"),
+    ("akamai/cookies/abck", {"headers": {"set-cookie": "_abck=abc123~0~; path=/"}}, "akamai", "cookies"),
+    ("akamai/html/bmak", {"html": '<script>bmak.sensor_data = "test";</script>'}, "akamai", "html"),
+    # -- datadome --
+    ("datadome/headers/x-dd-b=1", {"headers": {"x-dd-b": "1"}}, "datadome", "headers"),
+    ("datadome/headers/x-dd-b=2", {"headers": {"x-dd-b": "2"}}, "datadome", "headers"),
+    ("datadome/headers/x-datadome", {"headers": {"x-datadome": "test"}}, "datadome", "headers"),
+    ("datadome/headers/x-datadome-cid", {"headers": {"x-datadome-cid": "abc123"}}, "datadome", "headers"),
+    ("datadome/cookies/datadome", {"headers": {"set-cookie": "datadome=abc123; path=/"}}, "datadome", "cookies"),
+    # -- perimeterx --
+    ("perimeterx/headers/x-px-authorization", {"headers": {"x-px-authorization": "test"}}, "perimeterx", "headers"),
+    ("perimeterx/html/window._pxAppId", {"html": '<script>window._pxAppId = "PX123";</script>'}, "perimeterx", "html"),
+    ("perimeterx/html/pxInit", {"html": "<script>pxInit();</script>"}, "perimeterx", "html"),
+    ("perimeterx/html/_pxAction", {"html": '<script>var _pxAction = "c";</script>'}, "perimeterx", "html"),
+    ("perimeterx/cookies/px3", {"headers": {"set-cookie": "_px3=abc123; path=/"}}, "perimeterx", "cookies"),
+    ("perimeterx/cookies/pxhd", {"headers": {"set-cookie": "_pxhd=abc123; path=/"}}, "perimeterx", "cookies"),
+    # -- shapesecurity --
+    ("shapesecurity/headers/dynamic-name", {"headers": {"x-abc12345-a": "test"}}, "shapesecurity", "headers"),
+    ("shapesecurity/html/text", {"html": "<script>shapesecurity.init();</script>"}, "shapesecurity", "html"),
+    # -- kasada --
+    ("kasada/headers/x-kasada", {"headers": {"x-kasada": "test"}}, "kasada", "headers"),
+    ("kasada/html/__kasada", {"html": "<script>__kasada.init();</script>"}, "kasada", "html"),
+    # -- imperva --
+    ("imperva/headers/x-cdn-incapsula", {"headers": {"x-cdn": "Incapsula"}}, "imperva", "headers"),
+    ("imperva/html/incapsula", {"html": "<script>incapsula.init();</script>"}, "imperva", "html"),
+    ("imperva/html/imperva", {"html": "<script>imperva.protect();</script>"}, "imperva", "html"),
+    ("imperva/cookies/incap_ses", {"headers": {"set-cookie": "incap_ses_123=abc; path=/"}}, "imperva", "cookies"),
+    ("imperva/cookies/visid_incap", {"headers": {"set-cookie": "visid_incap_456=xyz; path=/"}}, "imperva", "cookies"),
+    ("imperva/cookies/reese84", {"headers": {"set-cookie": "reese84=abc123; path=/"}}, "imperva", "cookies"),
+    # -- reblaze --
+    ("reblaze/cookies/rbzid", {"headers": {"set-cookie": "rbzid=abc123; path=/"}}, "reblaze", "cookies"),
+    ("reblaze/cookies/rbzsessionid", {"headers": {"set-cookie": "rbzsessionid=xyz; path=/"}}, "reblaze", "cookies"),
+    ("reblaze/html/text", {"html": "<p>Protected by Reblaze</p>"}, "reblaze", "html"),
+    # -- cheq --
+    ("cheq/html/CheqSdk", {"html": "<script>CheqSdk.init();</script>"}, "cheq", "html"),
+    ("cheq/html/cheqzone.com", {"html": '<script src="https://ob.cheqzone.com/script.js"></script>'}, "cheq", "html"),
+    ("cheq/url/cheqzone.com", {"url": "https://ob.cheqzone.com/script.js"}, "cheq", "url"),
+    ("cheq/url/cheq.ai", {"url": "https://cheq.ai/api/verify"}, "cheq", "url"),
+    # -- sucuri --
+    ("sucuri/html/text", {"html": "<p>Sucuri Website Firewall - Access Denied</p>"}, "sucuri", "html"),
+    # -- threatmetrix --
+    ("threatmetrix/html/text", {"html": "<script>ThreatMetrix.init();</script>"}, "threatmetrix", "html"),
+    ("threatmetrix/url/fp-check-js", {"url": "https://example.com/fp/check.js?org_id=abc"}, "threatmetrix", "url"),
+    # -- meetrics --
+    ("meetrics/html/text", {"html": "<script>meetricsGlobal.init();</script>"}, "meetrics", "html"),
+    ("meetrics/url/domain", {"url": "https://s418.mxcdn.net/bb-mx/serve/meetrics.com/script"}, "meetrics", "url"),
+    # -- ocule --
+    ("ocule/html/domain", {"html": '<script src="https://proxy.ocule.co.uk/script.js"></script>'}, "ocule", "html"),
+    ("ocule/url/domain", {"url": "https://proxy.ocule.co.uk/script.js"}, "ocule", "url"),
+    # -- recaptcha --
+    ("recaptcha/url/recaptcha-api", {"url": "https://www.google.com/recaptcha/api.js"}, "recaptcha", "url"),
+    ("recaptcha/url/google.com-recaptcha", {"url": "https://google.com/recaptcha/enterprise.js"}, "recaptcha", "url"),
+    ("recaptcha/url/gstatic.com-recaptcha", {"url": "https://www.gstatic.com/recaptcha/releases/abc/recaptcha.js"}, "recaptcha", "url"),
+    ("recaptcha/url/recaptcha.net", {"url": "https://recaptcha.net/recaptcha/api.js"}, "recaptcha", "url"),
+    ("recaptcha/html/grecaptcha.execute", {"html": "<script>grecaptcha.execute();</script>"}, "recaptcha", "html"),
+    ("recaptcha/html/g-recaptcha", {"html": '<div class="g-recaptcha" data-sitekey="test"></div>'}, "recaptcha", "html"),
+    # -- hcaptcha --
+    ("hcaptcha/url/domain", {"url": "https://hcaptcha.com/captcha/v1"}, "hcaptcha", "url"),
+    ("hcaptcha/html/hcaptcha.com", {"html": '<script src="https://hcaptcha.com/1/api.js"></script>'}, "hcaptcha", "html"),
+    ("hcaptcha/html/h-captcha", {"html": '<div class="h-captcha"></div>'}, "hcaptcha", "html"),
+    # -- funcaptcha --
+    ("funcaptcha/url/arkoselabs", {"url": "https://client-api.arkoselabs.com/fc/gc/"}, "funcaptcha", "url"),
+    ("funcaptcha/url/funcaptcha", {"url": "https://api.funcaptcha.com/fc/gt2/public_key/test"}, "funcaptcha", "url"),
+    ("funcaptcha/html/funcaptcha", {"html": "<script>funcaptcha.init();</script>"}, "funcaptcha", "html"),
+    ("funcaptcha/html/arkoselabs.com", {"html": '<script src="https://client-api.arkoselabs.com/fc/assets/loader.js"></script>'}, "funcaptcha", "html"),
+    # -- geetest --
+    ("geetest/url/domain", {"url": "https://api.geetest.com/ajax.php"}, "geetest", "url"),
+    ("geetest/html/text", {"html": "<script>geetest.init();</script>"}, "geetest", "html"),
+    # -- cloudflare-turnstile --
+    ("cloudflare-turnstile/url/api", {"url": "https://challenges.cloudflare.com/turnstile/v0/api.js"}, "cloudflare-turnstile", "url"),
+    ("cloudflare-turnstile/html/cf-turnstile", {"html": '<div class="cf-turnstile"></div>'}, "cloudflare-turnstile", "html"),
+    ("cloudflare-turnstile/html/api-script", {"html": '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script>'}, "cloudflare-turnstile", "html"),
+    # -- friendly-captcha --
+    ("friendly-captcha/url/domain", {"url": "https://cdn.friendlycaptcha.com/modules/v2/widget.js"}, "friendly-captcha", "url"),
+    ("friendly-captcha/html/frc-captcha", {"html": '<div class="frc-captcha" data-sitekey="test"></div>'}, "friendly-captcha", "html"),
+    ("friendly-captcha/html/friendlyChallenge", {"html": "<script>friendlyChallenge.render();</script>"}, "friendly-captcha", "html"),
+    # -- captcha-eu --
+    ("captcha-eu/url/domain", {"url": "https://www.captcha.eu/widget/api.js"}, "captcha-eu", "url"),
+    ("captcha-eu/html/CaptchaEU", {"html": "<script>CaptchaEU.render();</script>"}, "captcha-eu", "html"),
+    ("captcha-eu/html/captchaeu-widget", {"html": '<div class="captchaeu-widget"></div>'}, "captcha-eu", "html"),
+    # -- qcloud-captcha --
+    ("qcloud-captcha/url/domain", {"url": "https://turing.captcha.qcloud.com/tdc.js"}, "qcloud-captcha", "url"),
+    ("qcloud-captcha/html/TencentCaptcha", {"html": '<script>new TencentCaptcha("appid");</script>'}, "qcloud-captcha", "html"),
+    ("qcloud-captcha/html/turing.captcha", {"html": '<script src="//turing.captcha.gtimg.com/tdc.js"></script>'}, "qcloud-captcha", "html"),
+    # -- aliexpress-captcha --
+    ("aliexpress-captcha/url/x5secdata", {"url": "https://www.aliexpress.com/punish?x5secdata=abc123"}, "aliexpress-captcha", "url"),
+    ("aliexpress-captcha/html/x5secdata", {"html": '<script>var x5secdata = "abc123";</script>'}, "aliexpress-captcha", "html"),
+    # -- reddit --
+    ("reddit/status_code/403", {"headers": {"content-type": "text/html", "server": "snooserv"}, "url": "https://www.reddit.com/r/digitalnomad/comments/1riz2r5/foo", "status_code": 403}, "reddit", "status_code"),
+    ("reddit/html/blocked", {"html": "<div>blocked by network security.</div>", "url": "https://www.reddit.com/r/lotus/comments/1pzbv0z/foo"}, "reddit", "html"),
+    # -- linkedin --
+    ("linkedin/status_code/999", {"status_code": 999, "url": "https://www.linkedin.com/in/wesbos"}, "linkedin", "status_code"),
+    # -- instagram --
+    ("instagram/html/login-redirect", {"html": '<!DOCTYPE html><html lang="en"><head><title>Login \u2022 Instagram</title></head><body></body></html>', "url": "https://www.instagram.com/kikobeats/"}, "instagram", "html"),
+    # -- youtube --
+    ("youtube/html/empty-title", {"html": '<!DOCTYPE html><html><head><title> - YouTube</title></head><body><ytd-app disable-upgrade="true"></ytd-app></body></html>'}, "youtube", "html"),
+    # -- anubis --
+    ("anubis/html/script-tag", {"html": '<script id="anubis_challenge" type="application/json">{"rules":{"algorithm":"metarefresh"}}</script>'}, "anubis", "html"),
+    ("anubis/html/static-path", {"html": '<img src="https://example.com/.within.website/x/cmd/anubis/static/img/pensive.webp">'}, "anubis", "html"),
+    # -- aws-waf --
+    ("aws-waf/headers/x-amzn-waf-action", {"headers": {"x-amzn-waf-action": "CHALLENGE"}}, "aws-waf", "headers"),
+    ("aws-waf/html/aws-waf", {"html": "<script>aws-waf.init();</script>"}, "aws-waf", "html"),
+    ("aws-waf/html/awswaf", {"html": '<script src="/awswaf/challenge.js"></script>'}, "aws-waf", "html"),
+    ("aws-waf/cookies/aws-waf-token", {"headers": {"set-cookie": "aws-waf-token=abc123; path=/"}}, "aws-waf", "cookies"),
+]
+
+# ---------------------------------------------------------------------------
+# Negative cases: (id, kwargs) — must NOT trigger detection
+# ---------------------------------------------------------------------------
+NEGATIVE_CASES: list[tuple[str, dict]] = [
+    ("no-input", {}),
+    ("empty-headers", {"headers": {}}),
+    ("akamai/cache-hit-is-not-antibot", {"headers": {"akamai-cache-status": "HIT"}}),
+    ("datadome/protected-is-not-antibot", {"headers": {"x-datadome": "protected"}}),
+    ("recaptcha/grecaptcha-badge-css-is-not-antibot", {"html": '<style>.grecaptcha-badge{visibility:hidden}</style><title>My Video - YouTube</title>'}),
+    ("hcaptcha/bare-mention-is-not-antibot", {"html": "<p>We use hcaptcha for bot protection.</p>"}),
+    ("funcaptcha/bare-arkose-is-not-antibot", {"html": '<script>window.__arkose_config = {};</script><meta property="og:title" content="Real content">'}),
+    ("geetest/generic-gt-js-is-not-antibot", {"html": '<script src="/static/gt.js"></script>'}),
+    ("turnstile/bare-word-is-not-antibot", {"html": "<p>The subway turnstile was broken.</p>"}),
+    ("reddit/blocked-html-on-non-reddit-url", {"html": "<div>blocked by network security.</div>", "url": "https://example.com/some/path"}),
+    ("reddit/allowed-endpoint", {"headers": {"content-type": "application/json; charset=UTF-8", "server": "snooserv"}, "url": "https://www.reddit.com/r/lotus/comments/1pzbv0z/foo"}),
+    ("linkedin/status-999-on-non-linkedin-url", {"status_code": 999, "url": "https://example.com"}),
+    ("linkedin/no-antibot-without-status-999", {"headers": {"x-li-fabric": "prod-lor1", "set-cookie": "other=value; Max-Age=5"}, "status_code": 200}),
+    ("youtube/normal-title", {"html": "<!DOCTYPE html><html><head><title>My Video - YouTube</title></head><body></body></html>"}),
+    ("anubis/plain-text-mention", {"html": "<p>The template uses anubis_challenge as a key</p>", "headers": {}}),
+    ("anubis/non-script-element", {"html": '<div id="anubis_challenge">some content</div>', "headers": {}}),
+    ("anubis/within-website-in-text", {"html": "<p>Read more at within.website blog</p>", "headers": {}}),
+]
+
+
+@pytest.mark.parametrize(
+    "kwargs,expected_provider,expected_detection",
+    [pytest.param(kw, ep, ed, id=id_) for id_, kw, ep, ed in POSITIVE_CASES],
+)
+def test_detected(kwargs: dict, expected_provider: str, expected_detection: str):
+    result = is_antibot(**kwargs)
+    assert result == AntibotResult(detected=True, provider=expected_provider, detection=expected_detection)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [pytest.param(kw, id=id_) for id_, kw in NEGATIVE_CASES],
+)
+def test_not_detected(kwargs: dict):
+    result = is_antibot(**kwargs)
+    assert result == AntibotResult(detected=False, provider=None, detection=None)
+
+
+def test_every_provider_has_positive_coverage():
+    """Ensure every provider in providers.json has at least one positive test case."""
+    tested = {ep for _, _, ep, _ in POSITIVE_CASES}
+    missing = _ALL_PROVIDER_NAMES - tested
+    assert not missing, f"Providers without test coverage: {missing}"
+
+
+def test_body_alias_falls_back_to_html():
+    result = is_antibot(body="<script>grecaptcha.execute();</script>")
+    assert result == AntibotResult(detected=True, provider="recaptcha", detection="html")
+
+
+def test_fetch_response_with_headers_and_html():
+    result = is_antibot(headers={"x-dd-b": "2"}, html="<script>grecaptcha.execute();</script>")
+    assert result == AntibotResult(detected=True, provider="datadome", detection="headers")
+
+
+def test_create_test_pattern_with_invalid_regex():
     has = create_test_pattern("test")
     assert has("[invalid(regex") is False
 
 
-def test_test_pattern_with_invalid_regex():
+def test_is_antibot_with_invalid_regex_does_not_throw():
     result = is_antibot(url="test", html="test")
-    # Should not throw and should return no detection
     assert result.detected is False
-    assert result.provider is None
-
-
-def test_general_no_antibot():
-    result = is_antibot(headers={})
-    assert result.detected is False
-    assert result.provider is None
-
-
-def test_no_headers_provided():
-    result = is_antibot()
-    assert result.detected is False
-    assert result.provider is None
-
-
-def test_support_dict_headers():
-    """Test with plain dict headers (Python equivalent of Headers object)."""
-    headers = {"cf-mitigated": "challenge"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "cloudflare"
-
-
-def test_support_response_headers_only():
-    """Test with dict headers simulating a Response object."""
-    headers = {"cf-mitigated": "challenge"}
-    result = is_antibot(headers=headers)
-    assert result.detected is True
-    assert result.provider == "cloudflare"
-
-
-def test_support_fetch_response_with_text():
-    """Test with headers dict and html body (Python equivalent of Fetch Response)."""
-    headers = {"x-dd-b": "2"}
-    html = "<script>grecaptcha.execute();</script>"
-    result = is_antibot(headers=headers, html=html)
-    assert result.detected is True
-    assert result.provider == "datadome"
-
-
-def test_fallback_body_string_to_html():
-    result = is_antibot(body="<script>grecaptcha.execute();</script>")
-    assert result.detected is True
-    assert result.provider == "recaptcha"
