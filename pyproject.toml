@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "is-antibot"
-version = "0.0.0a0.dev0"
+version = "0.0.0"
 description = "Detect antibot protection from 30+ providers — Cloudflare, Akamai, DataDome, PerimeterX, Kasada, Imperva, reCAPTCHA, hCaptcha, Turnstile, and more."
 readme = "README.md"
 license = "MIT"
@@ -62,7 +62,15 @@ Repository = "https://github.com/microlinkhq/is-antibot"
 Issues = "https://github.com/microlinkhq/is-antibot/issues"
 
 [dependency-groups]
-dev = ["ruff", "ty>=0.0.29", "pytest", "pytest-cov", "httpx"]
+dev = [
+    "ruff",
+    "ty>=0.0.29",
+    "pytest",
+    "pytest-cov",
+    "httpx",
+    "commitizen>=4.13.9",
+    "pre-commit>=4.5.1",
+]
 
 
 [tool.ruff]
@@ -108,6 +116,13 @@ convention = "google"
 
 [tool.ty.rules]
 all = "error"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.0"
+version_files = ["pyproject.toml:version"]
+tag_format = "v$version"
+update_changelog_on_bump = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

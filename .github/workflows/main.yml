@@ -6,17 +6,11 @@ on:
       - master
 
 jobs:
-  release:
-    if: |
-      !startsWith(github.event.head_commit.message, 'chore(release):') &&
-      !startsWith(github.event.head_commit.message, 'docs:') &&
-      !startsWith(github.event.head_commit.message, 'ci:')
+  test:
+    if: "!startsWith(github.event.head_commit.message, 'bump:')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
       - name: Install uv
         uses: astral-sh/setup-uv@v6
       - name: Set up Python
@@ -29,6 +23,43 @@ jobs:
         uses: coverallsapp/github-action@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  bump:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Install dependencies
+        run: uv sync --group dev
+      - name: Configure git
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Bump version
+        run: uv run cz bump --yes --changelog
+      - name: Push
+        run: git push origin master --follow-tags
+
+  publish:
+    needs: bump
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+      - name: Set up Python
+        run: uv python install 3.13
       - name: Build
         run: uv build
       - name: Publish to PyPI
