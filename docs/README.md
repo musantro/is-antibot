@@ -3,6 +3,7 @@
   <br>
   <br>
   <p><strong>is-antibot</strong> detects antibot and CAPTCHA challenges from 30+ providers using signals.</p>
+  <p><em>Python port of <a href="https://github.com/microlinkhq/is-antibot">microlinkhq/is-antibot</a> npm package.</em></p>
 </div>
 
 
@@ -10,7 +11,7 @@
 
 [microlink.io](https://microlink.io) handles +700M requests every month.
 
-When you're building infrastructure that needs an URL as input for getting data, you’re constantly interacting with defenses designed to stop you.
+When you're building infrastructure that needs an URL as input for getting data, you're constantly interacting with defenses designed to stop you.
 
 <div class="why-scene" aria-label="Why challenge detection matters">
   <p><span style="margin-right: 8px">A request can experience</span><span class="status-flicker" role="text" aria-label="429 Too Many Requests, 401 Unauthorized, or 403 Forbidden"><span aria-hidden="true">429 TOO_MANY_REQUESTS</span><span aria-hidden="true">401 UNAUTHORIZED</span><span aria-hidden="true">403 FORBIDDEN</span></span></p>
@@ -61,7 +62,7 @@ Common signals include:
 
 - **IP reputation**: Data-center IPs are flagged by default. Residential traffic behaves differently.
 - **HTTP consistency**: Headers must match a real browser profile—not just User-Agent, but the full set.
-- **TLS fingerprints (JA3)**: The way a client negotiates TLS leaks whether it’s a browser or a script.
+- **TLS fingerprints (JA3)**: The way a client negotiates TLS leaks whether it's a browser or a script.
 - **Behavioral heuristics**: Timing, navigation order, and interaction patterns matter.
 - **JavaScript fingerprinting**: Canvas, WebGL, fonts, screen size—small inconsistencies are enough.
 
@@ -69,41 +70,41 @@ Based on these signals, a request is either:
 
 - **Allowed**: If the heuristics indicate a legitimate human visitor, the request is passed through to the target website.
 - **Blocked**: If the request is highly suspicious (e.g., coming from a known malicious IP or with a broken TLS fingerprint), it is blocked immediately with a 403 Forbidden or 429 Too Many Requests error.
-- **Challenged**: If the system is unsure, it serves a “challenge”—such as a CAPTCHA or a JavaScript-based interstitial—that must be resolved before the actual content is released.
+- **Challenged**: If the system is unsure, it serves a "challenge"—such as a CAPTCHA or a JavaScript-based interstitial—that must be resolved before the actual content is released.
 
 ## Quick start
 
-Install it as dependency is the first thing to do:
+Install it as a dependency:
 
 ```bash
-npm install is-antibot
+pip install is-antibot
 ```
 
 **is-antibot** is designed to have a minimal footprint. It works with static HTTP response analysis.
 
 No headless browser is required. Just pass it the response information:
 
-```js
-import isAntibot from 'is-antibot'
+```python
+import httpx
+from is_antibot import is_antibot
 
-const response = await fetch('https://example.com')
+response = httpx.get("https://example.com")
 
-const { detected, provider, detection } = isAntibot({
-  headers: response.headers,
-  statusCode: response.status,
-  html: await response.text(),
-  url: response.url
-})
+result = is_antibot(
+    headers=dict(response.headers),
+    status_code=response.status_code,
+    html=response.text,
+    url=str(response.url),
+)
 
-if (detected) {
-  console.log(`Blocked by ${provider} (via ${detection})`)
-  // => "Blocked by CloudFlare (via headers)"
-}
+if result.detected:
+    print(f"Blocked by {result.provider} (via {result.detection})")
+    # => "Blocked by CloudFlare (via headers)"
 ```
 
 The result is deterministic and fast—designed to run on every request without becoming the bottleneck.
 
-It works with any HTTP client, including [got](https://github.com/sindresorhus/got), [axios](https://github.com/axios/axios), [undici](https://github.com/nodejs/undici) or just the vanilla [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API).
+It works with any HTTP client, including [httpx](https://github.com/encode/httpx), [requests](https://github.com/psf/requests), [aiohttp](https://github.com/aio-libs/aiohttp), or just the standard library [urllib](https://docs.python.org/3/library/urllib.html).
 
 ## How it works
 
