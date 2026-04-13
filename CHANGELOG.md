@@ -88,3 +88,8 @@
 
 
 
+## v0.1.0 (2026-04-13)
+
+### Feat
+
+- is-antibot Python library for antibot detection

@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "is-antibot"
-version = "0.0.0"
+version = "0.1.0"
 description = "Detect antibot protection from 30+ providers — Cloudflare, Akamai, DataDome, PerimeterX, Kasada, Imperva, reCAPTCHA, hCaptcha, Turnstile, and more."
 readme = "README.md"
 license = "MIT"
@@ -119,7 +119,7 @@ all = "error"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.0.0"
+version = "0.1.0"
 version_files = ["pyproject.toml:version"]
 tag_format = "v$version"
 update_changelog_on_bump = true
