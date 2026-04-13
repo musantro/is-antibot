@@ -47,7 +47,7 @@ jobs:
       - name: Bump version
         run: uv run cz bump --yes --changelog
       - name: Push
-        run: git push origin master --follow-tags
+        run: git push origin master --tags
 
   publish:
     needs: bump
