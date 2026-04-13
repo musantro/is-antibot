@@ -88,6 +88,12 @@
 
 
 
+## v0.1.1 (2026-04-13)
+
+### Fix
+
+- **ci**: push tags explicitly after version bump
+
 ## v0.1.0 (2026-04-13)
 
 ### Feat
