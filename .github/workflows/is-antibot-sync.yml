@@ -1,0 +1,83 @@
+name: is-antibot sync
+
+on:
+  repository_dispatch:
+    types:
+      - is-antibot-release-published
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Upstream tag to sync (e.g. v1.7.0). Defaults to latest release."
+        required: false
+        default: ""
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve source URLs
+        id: src
+        env:
+          PAYLOAD_PROVIDERS: ${{ github.event.client_payload.providersUrl }}
+          PAYLOAD_SCHEMA: ${{ github.event.client_payload.schemaUrl }}
+          PAYLOAD_VERSION: ${{ github.event.client_payload.version }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -n "${PAYLOAD_PROVIDERS}" ] && [ -n "${PAYLOAD_SCHEMA}" ]; then
+            providers_url="${PAYLOAD_PROVIDERS}"
+            schema_url="${PAYLOAD_SCHEMA}"
+            version="${PAYLOAD_VERSION}"
+          else
+            ref="${INPUT_VERSION}"
+            if [ -z "$ref" ]; then
+              ref=$(curl -fsSL https://api.github.com/repos/microlinkhq/is-antibot/releases/latest | jq -r '.tag_name')
+            fi
+            providers_url="https://raw.githubusercontent.com/microlinkhq/is-antibot/${ref}/src/providers.json"
+            schema_url="https://raw.githubusercontent.com/microlinkhq/is-antibot/${ref}/src/schema.json"
+            version="${ref}"
+          fi
+          echo "providers_url=${providers_url}" >> "$GITHUB_OUTPUT"
+          echo "schema_url=${schema_url}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Download upstream providers.json and schema
+        run: |
+          set -euo pipefail
+          curl -fsSL "${{ steps.src.outputs.providers_url }}" -o /tmp/providers.json
+          curl -fsSL "${{ steps.src.outputs.schema_url }}"    -o /tmp/schema.json
+          jq --arg s "./providers.schema.json" '.["$schema"] = $s' /tmp/providers.json > src/is_antibot/providers.json
+          cp /tmp/schema.json src/is_antibot/providers.schema.json
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Test against synced providers
+        run: uv run pytest -v
+
+      - name: Commit and push if changed
+        env:
+          VERSION: ${{ steps.src.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config --local user.name  "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- src/is_antibot/providers.json src/is_antibot/providers.schema.json; then
+            echo "No changes to sync."
+            exit 0
+          fi
+          git add src/is_antibot/providers.json src/is_antibot/providers.schema.json
+          git commit -m "feat: sync providers from is-antibot ${VERSION}"
+          git push origin HEAD:master
